@@ -275,6 +275,10 @@ static void lxc_container_free(struct lxc_container *c)
 	free(c->error_string);
 	c->error_string = NULL;
 
+    if (c->monitor_fd > 0) {
+        close(c->monitor_fd);
+    }
+
 	if (c->slock) {
 		lxc_putlock(c->slock);
 		c->slock = NULL;
@@ -482,6 +486,76 @@ static const char *do_lxcapi_state(struct lxc_container *c)
 }
 
 WRAP_API(const char *, lxcapi_state)
+
+static struct lxc_monitor do_lxcapi_monitor(struct lxc_container *c, int timeout)
+{
+	struct pollfd fds;
+	struct lxc_msg msg;
+	struct lxc_monitor mon;
+
+	if (c->monitor_fd == 0) {
+		int fd;
+		const char* lxcpath = do_lxcapi_get_config_path(c);
+		if (lxc_monitord_spawn(lxcpath) != 0) {
+			goto error;
+		}
+
+		fd = lxc_monitor_open(lxcpath);
+		if (fd < 0) {
+			goto close_and_error;
+		}
+
+		c->monitor_fd = fd;
+	}
+
+	fds.fd = c->monitor_fd;
+	fds.events = POLLIN;
+	fds.revents = 0;
+	for(;;) {
+		switch(lxc_monitor_read_fdset(&fds, 1, &msg, timeout)) {
+		case -1:
+			goto close_and_error;
+		case -2:
+			goto timeout;
+		default:
+			break;
+		}
+
+		msg.name[sizeof(msg.name)-1] = '\0';
+		if (strcmp(c->name, msg.name))
+			continue;
+
+		switch(msg.type) {
+		case lxc_msg_state:
+			mon.type = lxc_monitor_state;
+			mon.value.state = lxc_state2str(msg.value);
+			break;
+		case lxc_msg_priority:
+			mon.type = lxc_monitor_priority;
+			mon.value.priority = msg.value;
+			break;
+		case lxc_msg_exit_code:
+			mon.type = lxc_monitor_exit_code;
+			mon.value.exit_code = msg.value;
+			break;
+		}
+
+		return mon;
+	}
+
+close_and_error:
+	close(c->monitor_fd);
+error:
+	mon.type = lxc_monitor_error;
+
+	return mon;
+timeout:
+	mon.type = lxc_monitor_timeout;
+
+	return mon;
+}
+
+WRAP_API_1(struct lxc_monitor, lxcapi_monitor, int)
 
 static bool is_stopped(struct lxc_container *c)
 {
@@ -5013,10 +5087,12 @@ struct lxc_container *lxc_container_new(const char *name, const char *configpath
 
 	c->daemonize = true;
 	c->pidfile = NULL;
+	c->monitor_fd = 0;
 
 	/* Assign the member functions. */
 	c->is_defined = lxcapi_is_defined;
 	c->state = lxcapi_state;
+	c->monitor = lxcapi_monitor;
 	c->is_running = lxcapi_is_running;
 	c->freeze = lxcapi_freeze;
 	c->unfreeze = lxcapi_unfreeze;

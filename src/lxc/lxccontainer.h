@@ -54,6 +54,27 @@ struct migrate_opts;
 
 struct lxc_console_log;
 
+struct lxc_mount {
+	int version;
+};
+
+typedef enum {
+    lxc_monitor_state,
+    lxc_monitor_priority,
+    lxc_monitor_exit_code,
+    lxc_monitor_timeout,
+	lxc_monitor_error,
+} lxc_monitor_ret_t;
+
+struct lxc_monitor {
+    lxc_monitor_ret_t type;
+    union {
+        const char *state;
+        int priority;
+        int exit_code;
+    } value;
+};
+
 /*!
  * An LXC container.
  *
@@ -80,6 +101,12 @@ struct lxc_container {
 	 * File to store pid.
 	 */
 	char *pidfile;
+
+	/*!
+	 * \private
+	 * Monitord socket file descriptor.
+	 */
+	int monitor_fd;
 
 	/*!
 	 * \private
@@ -140,6 +167,15 @@ struct lxc_container {
 	 * \note Returned string must not be freed.
 	 */
 	const char *(*state)(struct lxc_container *c);
+
+	/*!
+	 * \brief Monitor the state, priority and exit code of a container.
+	 *
+	 * \param c Container.
+	 *
+	 * \return The LXC message received from the container monitor.
+	 */
+	struct lxc_monitor (*monitor)(struct lxc_container *c, int timeout);
 
 	/*!
 	 * \brief Determine if container is running.
