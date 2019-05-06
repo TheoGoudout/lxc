@@ -70,7 +70,7 @@ static void lxc_monitord_cleanup(void);
  * @clientfds_cnt  : the count of valid fds in clientfds
  * @descr          : the lxc_mainloop state
  */
-struct lxc_monitor {
+struct lxc_monitord {
 	const char *lxcpath;
 	int fifofd;
 	int listenfd;
@@ -80,10 +80,10 @@ struct lxc_monitor {
 	struct lxc_epoll_descr descr;
 };
 
-static struct lxc_monitor monitor;
+static struct lxc_monitord monitor;
 static int quit;
 
-static int lxc_monitord_fifo_create(struct lxc_monitor *mon)
+static int lxc_monitord_fifo_create(struct lxc_monitord *mon)
 {
 	struct flock lk;
 	char fifo_path[PATH_MAX];
@@ -121,7 +121,7 @@ static int lxc_monitord_fifo_create(struct lxc_monitor *mon)
 	return 0;
 }
 
-static int lxc_monitord_fifo_delete(struct lxc_monitor *mon)
+static int lxc_monitord_fifo_delete(struct lxc_monitord *mon)
 {
 	char fifo_path[PATH_MAX];
 	int ret;
@@ -134,7 +134,7 @@ static int lxc_monitord_fifo_delete(struct lxc_monitor *mon)
 	return 0;
 }
 
-static void lxc_monitord_sockfd_remove(struct lxc_monitor *mon, int fd)
+static void lxc_monitord_sockfd_remove(struct lxc_monitord *mon, int fd)
 {
 	int i;
 
@@ -160,7 +160,7 @@ static void lxc_monitord_sockfd_remove(struct lxc_monitor *mon, int fd)
 static int lxc_monitord_sock_handler(int fd, uint32_t events, void *data,
 				     struct lxc_epoll_descr *descr)
 {
-	struct lxc_monitor *mon = data;
+	struct lxc_monitord *mon = data;
 
 	if (events & EPOLLIN) {
 		int rc;
@@ -181,7 +181,7 @@ static int lxc_monitord_sock_accept(int fd, uint32_t events, void *data,
 				    struct lxc_epoll_descr *descr)
 {
 	int ret, clientfd;
-	struct lxc_monitor *mon = data;
+	struct lxc_monitord *mon = data;
 	struct ucred cred;
 	socklen_t credsz = sizeof(cred);
 
@@ -241,7 +241,7 @@ out:
 	return ret;
 }
 
-static int lxc_monitord_sock_create(struct lxc_monitor *mon)
+static int lxc_monitord_sock_create(struct lxc_monitord *mon)
 {
 	struct sockaddr_un addr;
 	int fd;
@@ -259,7 +259,7 @@ static int lxc_monitord_sock_create(struct lxc_monitor *mon)
 	return 0;
 }
 
-static int lxc_monitord_sock_delete(struct lxc_monitor *mon)
+static int lxc_monitord_sock_delete(struct lxc_monitord *mon)
 {
 	struct sockaddr_un addr;
 
@@ -272,7 +272,7 @@ static int lxc_monitord_sock_delete(struct lxc_monitor *mon)
 	return 0;
 }
 
-static int lxc_monitord_create(struct lxc_monitor *mon)
+static int lxc_monitord_create(struct lxc_monitord *mon)
 {
 	int ret;
 
@@ -283,7 +283,7 @@ static int lxc_monitord_create(struct lxc_monitor *mon)
 	return lxc_monitord_sock_create(mon);
 }
 
-static void lxc_monitord_delete(struct lxc_monitor *mon)
+static void lxc_monitord_delete(struct lxc_monitord *mon)
 {
 	int i;
 
@@ -308,7 +308,7 @@ static int lxc_monitord_fifo_handler(int fd, uint32_t events, void *data,
 {
 	int ret, i;
 	struct lxc_msg msglxc;
-	struct lxc_monitor *mon = data;
+	struct lxc_monitord *mon = data;
 
 	ret = lxc_read_nointr(fd, &msglxc, sizeof(msglxc));
 	if (ret != sizeof(msglxc)) {
@@ -326,7 +326,7 @@ static int lxc_monitord_fifo_handler(int fd, uint32_t events, void *data,
 	return LXC_MAINLOOP_CONTINUE;
 }
 
-static int lxc_monitord_mainloop_add(struct lxc_monitor *mon)
+static int lxc_monitord_mainloop_add(struct lxc_monitord *mon)
 {
 	int ret;
 
